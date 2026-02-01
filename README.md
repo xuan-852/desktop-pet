@@ -58,3 +58,6 @@ D:\mingw\mingw64\bin\g++.exe -I d:\C\code\external\webview2\pkg\build\native\inc
 
 ## 后话
 感谢 Midsummer-s-Bird 提供的开源模型。如果你喜欢这个项目，请给 Midsummer-s-Bird 点个 star！！！！
+
+## 其他
+本项目单纯为了学习和研究，不包含任何商业用途。但注意Midsummer-s-Bird的开源模型里面的AI聊天模型需要对应的API密钥才能正常使用。即你需要自己去对应的AI服务提供商申请API密钥。
