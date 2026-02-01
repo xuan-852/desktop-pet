@@ -16,4 +16,16 @@
 D:\mingw\mingw64\bin\g++.exe -I d:\C\code\external\webview2\pkg\build\native\include -Wall -Wextra -g3 d:\C\code\text1.c -o d:\C\code\output\text1.exe -lgdi32 -luser32 -lmsimg32 -lgdiplus -lole32 -luuid
 ```
 
+### 常见错误：找不到 WebView2.h
+
+如果出现 `fatal error: WebView2.h: No such file or directory`，说明没有添加 WebView2 头文件路径。
+
+请确保在编译命令里加入：
+
+```
+-I <你的工程目录>\external\webview2\pkg\build\native\include
+```
+
+如果你在别的目录编译，请把 `<你的工程目录>` 改成实际路径（例如 `D:\haha\desktop-pet-main`）。
+
 > 说明：如果你希望用 msbuild，请先安装 Visual Studio Build Tools 并将 msbuild 加入 PATH。但本项目不需要 msbuild。
