@@ -16,6 +16,13 @@
 D:\mingw\mingw64\bin\g++.exe -I d:\C\code\external\webview2\pkg\build\native\include -Wall -Wextra -g3 d:\C\code\text1.c -o d:\C\code\output\text1.exe -lgdi32 -luser32 -lmsimg32 -lgdiplus -lole32 -luuid
 ```
 
+### 安装 WebView2 运行时（重要）
+
+### 要安装的库
+
+- WebView2 库（已包含在项目中）
+- MinGW-w64 工具链（包含 g++）
+
 ### 常见错误：找不到 WebView2.h
 
 如果出现 `fatal error: WebView2.h: No such file or directory`，说明没有添加 WebView2 头文件路径。
