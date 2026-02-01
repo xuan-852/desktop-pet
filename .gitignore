@@ -1,0 +1,16 @@
+# Build outputs
+output/
+*.exe
+*.pdb
+*.obj
+*.log
+
+# WebView2 user data/cache
+**/*.exe.WebView2/
+**/EBWebView/
+**/WebView2/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
