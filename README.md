@@ -55,3 +55,6 @@ D:\mingw\mingw64\bin\g++.exe -I d:\C\code\external\webview2\pkg\build\native\inc
 如果你在别的目录编译，请把 `<你的工程目录>` 改成实际路径（例如 `D:\haha\desktop-pet-main`）。
 
 > 说明：如果你希望用 msbuild，请先安装 Visual Studio Build Tools 并将 msbuild 加入 PATH。但本项目不需要 msbuild。
+
+## 后话
+感谢 Midsummer-s-Bird 提供的开源模型。如果你喜欢这个项目，请给 Midsummer-s-Bird 点个 star！！！！
