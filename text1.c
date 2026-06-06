@@ -162,6 +162,7 @@ static COLORREF g_chatTextColor = RGB(0, 0, 0);
 static HBRUSH g_chatBgBrush = NULL;
 static COLORREF g_chatCustomColors[16] = { 0 };
 static BOOL g_chatCustomColorsInit = FALSE;
+static DWORD g_lastTopmostCheck = 0;    // 强制置顶计时
 static HWND g_webviewHostHwnd = NULL;
 static BOOL g_webviewReady = FALSE;
 static BOOL g_webviewInitPending = FALSE;
@@ -1499,6 +1500,15 @@ static void RenderPet(HWND hwnd) {
 // 窗口过程：处理消息
 static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     switch (msg) {
+        case WM_WINDOWPOSCHANGING:
+        {
+            // 强制窗口始终保持最顶层，防止被任务栏等其他置顶窗口遮挡
+            WINDOWPOS* wp = (WINDOWPOS*)lParam;
+            wp->hwndInsertAfter = HWND_TOPMOST;
+            wp->flags &= ~SWP_NOZORDER;
+            return 0;
+        }
+
         case WM_CREATE:
             SetTimer(hwnd, 1, 10, NULL);//改帧率，第三位越小，帧率越高
             return 0;
@@ -1507,6 +1517,12 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
             UpdatePauseState();
             StepPet(hwnd);
             RenderPet(hwnd);
+            // 每 50 帧（约 500ms）强制置顶一次，防止被任务栏遮挡
+            if ((GetTickCount() / 500) != g_lastTopmostCheck) {
+                g_lastTopmostCheck = GetTickCount() / 500;
+                SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0,
+                             SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+            }
             return 0;
 
         case WM_LBUTTONDOWN:
