@@ -3,7 +3,13 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <shellapi.h>
+
+// 忽略 WebView2.h 中 MSVC 特有的 pragma 警告
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunknown-pragmas"
 #include <WebView2.h>
+#pragma GCC diagnostic pop
+
 #include <objidl.h>
 #include <gdiplus.h>
 #include <commdlg.h>
@@ -101,7 +107,6 @@ static int g_landWeight8 = LAND_WEIGHT_8;
 //函数声明处
 
 static Image* PickStopImage1ByDirection(void) ;
-static Image* PickStopImage4ByDirection(void) ;
 static void ShowChatWindow(HWND owner);
 static LRESULT CALLBACK ChatWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 static LRESULT CALLBACK WebViewHostWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -146,8 +151,7 @@ static BOOL g_hasLanded = FALSE;        // 是否已经落地（用于控制首�
 static BOOL g_ignoreClick = FALSE;      // 双击时忽略一次单击触发
 
 // 系统托盘
-static HWND g_trayHwnd = NULL;           // 用于托盘通知的隐藏窗口
-static NOTIFYICONDATAW g_trayData = { 0 };
+static NOTIFYICONDATAW g_trayData = {};
 static BOOL g_trayIconAdded = FALSE;
 static HICON g_trayIcon = NULL;
 
@@ -160,7 +164,7 @@ static HWND g_chatConfigBtn = NULL;
 static COLORREF g_chatBgColor = RGB(255, 236, 255);
 static COLORREF g_chatTextColor = RGB(0, 0, 0);
 static HBRUSH g_chatBgBrush = NULL;
-static COLORREF g_chatCustomColors[16] = { 0 };
+static COLORREF g_chatCustomColors[16] = {};
 static BOOL g_chatCustomColorsInit = FALSE;
 static DWORD g_lastTopmostCheck = 0;    // 强制置顶计时
 static HWND g_webviewHostHwnd = NULL;
@@ -168,7 +172,7 @@ static BOOL g_webviewReady = FALSE;
 static BOOL g_webviewInitPending = FALSE;
 static int g_chatRequestId = 0;
 static BOOL g_hasPendingSend = FALSE;
-static wchar_t g_pendingSendText[2048] = { 0 };
+static wchar_t g_pendingSendText[2048] = {};
 static int g_pendingSendId = 0;
 
 static ICoreWebView2Environment* g_webviewEnv = NULL;
@@ -191,9 +195,9 @@ static GroundTask g_lastGroundTask = TASK_NONE;
 
 // 区分点击和拖拽的变量
 static BOOL g_beganDrag = FALSE;        // 标记是否已经开始系统拖拽
-static POINT g_startPos = { 0 };        // 记录鼠标按下的起始位置
+static POINT g_startPos = {};           // 记录鼠标按下的起始位置
 // 拖动速度记录（像素/帧）
-static POINT g_dragPrevPos = { 0, 0 };
+static POINT g_dragPrevPos = {};
 static DWORD g_dragPrevTick = 0;
 static int g_dragVx = 0;
 static int g_dragVy = 0;
@@ -572,9 +576,9 @@ HRESULT WebViewControllerCompletedHandler::Invoke(HRESULT result, ICoreWebView2C
     }
 
     if (g_webview) {
-        EventRegistrationToken token = { 0 };
+        EventRegistrationToken token = {};
         g_webview->add_WebMessageReceived(new WebViewMessageReceivedHandler(), &token);
-        EventRegistrationToken navToken = { 0 };
+        EventRegistrationToken navToken = {};
         g_webview->add_NavigationCompleted(new WebViewNavigationCompletedHandler(), &navToken);
 
         wchar_t htmlPath[MAX_PATH] = { 0 };
@@ -637,7 +641,7 @@ static void EnsureWebView2Initialized(HWND owner) {
 
     if (!g_webviewHostHwnd) {
         const wchar_t* hostClass = L"WebView2HostWindow";
-        WNDCLASSW wc = { 0 };
+        WNDCLASSW wc = {};
         wc.lpfnWndProc = WebViewHostWndProc;
         wc.hInstance = GetModuleHandleW(NULL);
         wc.lpszClassName = hostClass;
@@ -658,7 +662,9 @@ static void EnsureWebView2Initialized(HWND owner) {
     }
 
     typedef HRESULT (STDAPICALLTYPE *PFN_CreateWebView2Env)(PCWSTR, PCWSTR, ICoreWebView2EnvironmentOptions*, ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler*);
-    PFN_CreateWebView2Env createEnv = (PFN_CreateWebView2Env)GetProcAddress(loader, "CreateCoreWebView2EnvironmentWithOptions");
+    PFN_CreateWebView2Env createEnv = nullptr;
+    FARPROC fp = GetProcAddress(loader, "CreateCoreWebView2EnvironmentWithOptions");
+    if (fp) { createEnv = reinterpret_cast<PFN_CreateWebView2Env>(fp); }
     if (!createEnv) {
         MessageBoxW(owner, L"无法加载 CreateCoreWebView2EnvironmentWithOptions。", L"WebView2", MB_ICONERROR | MB_OK);
         g_webviewInitPending = FALSE;
@@ -790,7 +796,7 @@ static LRESULT CALLBACK ChatWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
 static void ShowChatWindow(HWND owner) {
     if (!g_chatHwnd) {
         const wchar_t* chatClass = L"DesktopPetChatWindow";
-        WNDCLASSW wc = { 0 };
+        WNDCLASSW wc = {};
         wc.lpfnWndProc = ChatWndProc;
         wc.hInstance = GetModuleHandleW(NULL);
         wc.lpszClassName = chatClass;
@@ -838,7 +844,7 @@ static void GetImagePath(wchar_t* outPath, size_t outSize) {
     wchar_t searchPath[MAX_PATH] = { 0 };
     swprintf(searchPath, MAX_PATH, L"%ls\\..\\photo_right\\*.png", modulePath);
 
-    WIN32_FIND_DATAW fd = { 0 };
+    WIN32_FIND_DATAW fd = {};
     HANDLE hFind = FindFirstFileW(searchPath, &fd);
     if (hFind != INVALID_HANDLE_VALUE) {
         FindClose(hFind);
@@ -1434,7 +1440,7 @@ static void RenderPet(HWND hwnd) {
     HDC screenDC = GetDC(NULL);
     HDC memDC = CreateCompatibleDC(screenDC);
 
-    BITMAPINFO bmi = { 0 };
+    BITMAPINFO bmi = {};
     bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
     bmi.bmiHeader.biWidth = g_pet.width;
     bmi.bmiHeader.biHeight = -g_pet.height; // 负值表示自上而下
@@ -1874,7 +1880,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     BOOL coInited = SUCCEEDED(hrCoInit);
 
     // 初始化 GDI+
-    GdiplusStartupInput gdiplusStartupInput = { 0 };
+    GdiplusStartupInput gdiplusStartupInput = {};
     gdiplusStartupInput.GdiplusVersion = 1;
     if (GdiplusStartup(&g_gdiplusToken, &gdiplusStartupInput, NULL) != Ok) {
         return 0;
@@ -1889,7 +1895,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     LoadWalkImages();
 
     // 注册窗口类
-    WNDCLASSW wc = { 0 };
+    WNDCLASSW wc = {};
     wc.lpfnWndProc = WndProc;
     wc.style = CS_DBLCLKS;
     wc.hInstance = hInstance;
@@ -1929,115 +1935,36 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     // 清理资源
     for (int i = 0; i < kClickItemCount; ++i) {
-        if (g_clickItems[i].left) {
-            delete g_clickItems[i].left;
-            g_clickItems[i].left = NULL;
-        }
-        if (g_clickItems[i].right) {
-            delete g_clickItems[i].right;
-            g_clickItems[i].right = NULL;
-        }
+        delete g_clickItems[i].left;   g_clickItems[i].left = NULL;
+        delete g_clickItems[i].right;  g_clickItems[i].right = NULL;
     }
-    if (g_imageDragLeft) {
-        delete g_imageDragLeft;
-        g_imageDragLeft = NULL;
-    }
-    if (g_imageDragRight) {
-        delete g_imageDragRight;
-        g_imageDragRight = NULL;
-    }
-    if (g_imageFallLeft) {
-        delete g_imageFallLeft;
-        g_imageFallLeft = NULL;
-    }
-    if (g_imageFallRight) {
-        delete g_imageFallRight;
-        g_imageFallRight = NULL;
-    }
-    if (g_imageLandLeft) {
-        delete g_imageLandLeft;
-        g_imageLandLeft = NULL;
-    }
-    if (g_imageLandRight) {
-        delete g_imageLandRight;
-        g_imageLandRight = NULL;
-    }
-    if (g_imageLandSpecialLeft) {
-        delete g_imageLandSpecialLeft;
-        g_imageLandSpecialLeft = NULL;
-    }
-    if (g_imageLandSpecialRight) {
-        delete g_imageLandSpecialRight;
-        g_imageLandSpecialRight = NULL;
-    }
-    if (g_imageLandLeft) {
-        delete g_imageLandLeft;
-        g_imageLandLeft = NULL;
-    }
-    if (g_imageLandRight) {
-        delete g_imageLandRight;
-        g_imageLandRight = NULL;
-    }
-    if (g_imageLandSpecialLeft) {
-        delete g_imageLandSpecialLeft;
-        g_imageLandSpecialLeft = NULL;
-    }
-    if (g_imageLandSpecialRight) {
-        delete g_imageLandSpecialRight;
-        g_imageLandSpecialRight = NULL;
-    }
-    if (g_imageLandLeft) {
-        delete g_imageLandLeft;
-        g_imageLandLeft = NULL;
-    }
-    if (g_imageLandRight) {
-        delete g_imageLandRight;
-        g_imageLandRight = NULL;
-    }
-    if (g_imageLandSpecialLeft) {
-        delete g_imageLandSpecialLeft;
-        g_imageLandSpecialLeft = NULL;
-    }
-    if (g_imageLandSpecialRight) {
-        delete g_imageLandSpecialRight;
-        g_imageLandSpecialRight = NULL;
-    }
-    if (g_imageWalkLeft) {
-        delete g_imageWalkLeft;
-        g_imageWalkLeft = NULL;
-    }
-    if (g_imageWalkRight) {
-        delete g_imageWalkRight;
-        g_imageWalkRight = NULL;
-    }
-    if (g_imageDefault) {
-        delete g_imageDefault;
-        g_imageDefault = NULL;
-    }
-    if (g_chatBgBrush) {
-        DeleteObject(g_chatBgBrush);
-        g_chatBgBrush = NULL;
-    }
-    if (g_webview) {
-        g_webview->Release();
-        g_webview = NULL;
-    }
-    if (g_webviewController) {
-        g_webviewController->Release();
-        g_webviewController = NULL;
-    }
-    if (g_webviewEnv) {
-        g_webviewEnv->Release();
-        g_webviewEnv = NULL;
-    }
+    // 用宏简化重复的图片清理
+    #define SAFE_DELETE_IMAGE(ptr) do { delete (ptr); (ptr) = NULL; } while(0)
+    #define SAFE_RELEASE(ptr) do { if (ptr) { (ptr)->Release(); (ptr) = NULL; } } while(0)
+
+    SAFE_DELETE_IMAGE(g_imageDragLeft);
+    SAFE_DELETE_IMAGE(g_imageDragRight);
+    SAFE_DELETE_IMAGE(g_imageFallLeft);
+    SAFE_DELETE_IMAGE(g_imageFallRight);
+    SAFE_DELETE_IMAGE(g_imageLandLeft);
+    SAFE_DELETE_IMAGE(g_imageLandRight);
+    SAFE_DELETE_IMAGE(g_imageLandSpecialLeft);
+    SAFE_DELETE_IMAGE(g_imageLandSpecialRight);
+    SAFE_DELETE_IMAGE(g_imageWalkLeft);
+    SAFE_DELETE_IMAGE(g_imageWalkRight);
+    SAFE_DELETE_IMAGE(g_imageDefault);
     g_image = NULL;
-    if (g_gdiplusToken) {
-        GdiplusShutdown(g_gdiplusToken);
-        g_gdiplusToken = 0;
-    }
-    if (coInited) {
-        CoUninitialize();
-    }
+
+    if (g_chatBgBrush) { DeleteObject(g_chatBgBrush); g_chatBgBrush = NULL; }
+    SAFE_RELEASE(g_webview);
+    SAFE_RELEASE(g_webviewController);
+    SAFE_RELEASE(g_webviewEnv);
+
+    #undef SAFE_DELETE_IMAGE
+    #undef SAFE_RELEASE
+
+    if (g_gdiplusToken) { GdiplusShutdown(g_gdiplusToken); g_gdiplusToken = 0; }
+    if (coInited) { CoUninitialize(); }
     return 0;
 }
 
@@ -2085,7 +2012,7 @@ static BOOL PickChatColor(HWND owner, BOOL isText) {
         return FALSE;
     }
 
-    CHOOSECOLORW cc = { 0 };
+    CHOOSECOLORW cc = {};
     cc.lStructSize = sizeof(cc);
     cc.hwndOwner = owner;
     cc.rgbResult = isText ? g_chatTextColor : g_chatBgColor;
@@ -2281,7 +2208,7 @@ static void ShowSettingsWindow(HWND owner) {
         return;
     }
     if (!g_settingsClassRegistered) {
-        WNDCLASSW wc = { 0 };
+        WNDCLASSW wc = {};
         wc.lpfnWndProc = SettingsWndProc;
         wc.hInstance = GetModuleHandleW(NULL);
         wc.lpszClassName = L"PetSettingsWindow";
