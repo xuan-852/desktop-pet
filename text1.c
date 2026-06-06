@@ -52,6 +52,11 @@
 #define IDC_CHAT_COLOR_BG 2005
 #define IDC_CHAT_COLOR_TEXT 2006
 
+// 系统托盘相关
+#define WM_TRAYICON (WM_APP + 1)       // 托盘回调消息
+#define ID_TRAY_EXIT  3001              // 退出
+#define ID_TRAY_SHOW  3002              // 显示/隐藏
+
 using namespace Gdiplus;
 
 // 图片缩放比例（1.0 为原始大小，可改为 0.5、2.0 等）
@@ -107,6 +112,9 @@ static void ShowWebViewConfigWindow(HWND owner);
 static void SwitchToImage(Image* img);
 static void ApplyChatColor(BOOL refresh);
 static BOOL PickChatColor(HWND owner, BOOL isText);
+static void AddTrayIcon(HWND hwnd);
+static void RemoveTrayIcon(void);
+static void ShowTrayMenu(HWND hwnd);
 
 // 点击图片资源（按方向区分 left/right）
 typedef struct {
@@ -136,6 +144,12 @@ static HWND g_hwnd = NULL;              // 主窗口句柄
 static BOOL g_isDragging = FALSE;       // 是否正在拖动窗口（用于StepPet判断）
 static BOOL g_hasLanded = FALSE;        // 是否已经落地（用于控制首次落地效果）
 static BOOL g_ignoreClick = FALSE;      // 双击时忽略一次单击触发
+
+// 系统托盘
+static HWND g_trayHwnd = NULL;           // 用于托盘通知的隐藏窗口
+static NOTIFYICONDATAW g_trayData = { 0 };
+static BOOL g_trayIconAdded = FALSE;
+static HICON g_trayIcon = NULL;
 
 // 聊天窗口与 WebView2
 static HWND g_chatHwnd = NULL;
@@ -207,6 +221,13 @@ static BOOL g_isPausedForChat = FALSE;
 static BOOL g_prevPausedChat = FALSE;
 static DWORD g_prevPauseUntilChat = 0;
 static Image* g_prevImageChat = NULL;
+
+static void HideStartupConsoleWindow(void) {
+    HWND console = GetConsoleWindow();
+    if (console) {
+        ShowWindow(console, SW_HIDE);
+    }
+}
 
 // 判断文件是否存在
 static BOOL FileExists(const wchar_t* path) {
@@ -1715,7 +1736,51 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
             return 0;
         }
 
+        case WM_TRAYICON:
+        {
+            if (lParam == WM_LBUTTONDBLCLK) {
+                // 双击托盘：显示/隐藏宠物
+                if (IsWindowVisible(hwnd)) {
+                    ShowWindow(hwnd, SW_HIDE);
+                } else {
+                    ShowWindow(hwnd, SW_SHOW);
+                    SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0,
+                                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+                }
+            } else if (lParam == WM_RBUTTONUP) {
+                ShowTrayMenu(hwnd);
+            }
+            return 0;
+        }
+
+        case WM_COMMAND:
+        {
+            int id = LOWORD(wParam);
+            if (id == ID_TRAY_EXIT) {
+                RemoveTrayIcon();
+                KillTimer(hwnd, 1);
+                PostQuitMessage(0);
+                return 0;
+            } else if (id == ID_TRAY_SHOW) {
+                if (IsWindowVisible(hwnd)) {
+                    ShowWindow(hwnd, SW_HIDE);
+                } else {
+                    ShowWindow(hwnd, SW_SHOW);
+                    SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0,
+                                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+                }
+                return 0;
+            }
+            break;
+        }
+
+        case WM_CLOSE:
+            // 关闭窗口时隐藏到系统托盘
+            ShowWindow(hwnd, SW_HIDE);
+            return 0;
+
         case WM_DESTROY:
+            RemoveTrayIcon();
             KillTimer(hwnd, 1);
             PostQuitMessage(0);
             return 0;
@@ -1726,9 +1791,66 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
     return 0;
 }
 
+// ========== 系统托盘相关函数 ==========
+
+static void AddTrayIcon(HWND hwnd) {
+    if (g_trayIconAdded) return;
+
+    g_trayData.cbSize = sizeof(NOTIFYICONDATAW);
+    g_trayData.hWnd = hwnd;
+    g_trayData.uID = 1;
+    g_trayData.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
+    g_trayData.uCallbackMessage = WM_TRAYICON;
+    wcsncpy(g_trayData.szTip, L"桌面宠物", 128);
+    g_trayData.szTip[127] = 0;
+
+    // 从默认图片创建图标（如果已加载）
+    if (g_imageDefault) {
+        Bitmap bmp(g_imageDefault->GetWidth(), g_imageDefault->GetHeight(), PixelFormat32bppARGB);
+        Graphics graphics(&bmp);
+        graphics.SetCompositingMode(CompositingModeSourceOver);
+        graphics.DrawImage(g_imageDefault, 0, 0, g_imageDefault->GetWidth(), g_imageDefault->GetHeight());
+        bmp.GetHICON(&g_trayIcon);
+    }
+    if (!g_trayIcon) {
+        g_trayIcon = LoadIcon(NULL, IDI_APPLICATION);
+    }
+    g_trayData.hIcon = g_trayIcon;
+
+    g_trayIconAdded = Shell_NotifyIconW(NIM_ADD, &g_trayData);
+}
+
+static void RemoveTrayIcon(void) {
+    if (g_trayIconAdded) {
+        g_trayData.uFlags = 0;
+        Shell_NotifyIconW(NIM_DELETE, &g_trayData);
+        g_trayIconAdded = FALSE;
+    }
+    if (g_trayIcon && g_trayIcon != LoadIcon(NULL, IDI_APPLICATION)) {
+        DestroyIcon(g_trayIcon);
+        g_trayIcon = NULL;
+    }
+}
+
+static void ShowTrayMenu(HWND hwnd) {
+    HMENU menu = CreatePopupMenu();
+    AppendMenuW(menu, MF_STRING, ID_TRAY_SHOW, L"显示/隐藏宠物");
+    AppendMenuW(menu, MF_SEPARATOR, 0, NULL);
+    AppendMenuW(menu, MF_STRING, ID_TRAY_EXIT, L"退出");
+
+    POINT pt;
+    GetCursorPos(&pt);
+    SetForegroundWindow(hwnd);
+    TrackPopupMenu(menu, TPM_RIGHTBUTTON, pt.x, pt.y, 0, hwnd, NULL);
+    PostMessage(hwnd, WM_NULL, 0, 0);
+    DestroyMenu(menu);
+}
+
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
     (void)hPrevInstance;
     (void)lpCmdLine;
+
+    HideStartupConsoleWindow();
 
     srand((unsigned int)GetTickCount());
 
@@ -1778,6 +1900,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     ShowWindow(hwnd, nCmdShow);
     UpdateWindow(hwnd);
     RenderPet(hwnd);
+
+    // 添加系统托盘图标
+    AddTrayIcon(hwnd);
 
     // 消息循环
     MSG msg;
